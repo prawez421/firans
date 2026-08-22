@@ -7,17 +7,18 @@ use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\PdfController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\UserController; // 👈 1. UserController Import किया गया
 
 /*
 |--------------------------------------------------------------------------
-| Public Routes (Frontend / Home Page Access)
+| Public Routes
 |--------------------------------------------------------------------------
 */
-// 🟢 Public Authentication
+// Public Authentication
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
 
-// 🟢 Public Document & Category Viewing (Fixes "Backend se load nahi ho paye")
+// Public Document & Category Viewing
 Route::get('/pdfs', [PdfController::class, 'index']);
 Route::get('/categories', [CategoryController::class, 'index']);
 
@@ -29,31 +30,36 @@ Route::get('/categories', [CategoryController::class, 'index']);
 */
 Route::middleware('auth:sanctum')->group(function () {
     
-    // Auth Profile & Logout
+    // Global Auth Profile & Logout
     Route::get('/me', [AuthController::class, 'profile']);
     Route::post('/logout', [AuthController::class, 'logout']);
 
-    // Admin Panel Management Group
+    // Admin Panel Management Group (/api/admin/...)
     Route::prefix('admin')->group(function () {
         
-        // Admin Profile
+        // 👤 Admin Profile Routes
         Route::get('/me', [AdminController::class, 'me']);
+        Route::put('/me', [AdminController::class, 'updateProfile']); // 👈 Added for Profile Update
 
-        // Dashboard Stats Route
+        // 👥 User Management CRUD Routes (ADDED)
+        Route::get('/users', [UserController::class, 'index']);          // Fetch all users
+        Route::post('/users', [UserController::class, 'store']);         // Create new user
+        Route::put('/users/{id}', [UserController::class, 'update']);     // Update user details
+        Route::delete('/users/{id}', [UserController::class, 'destroy']);  // Delete user
+
+        // 📊 Dashboard Stats
         Route::get('/dashboard-stats', [DashboardController::class, 'getStats']);
 
-        // Categories Admin CRUD Routes
+        // 📂 Categories Admin Routes
         Route::get('/categories', [CategoryController::class, 'index']);
         Route::post('/categories', [CategoryController::class, 'store']);
         Route::put('/categories/{id}', [CategoryController::class, 'update']);
         Route::delete('/categories/{id}', [CategoryController::class, 'destroy']);
 
-
+        // 📄 PDF Management Admin Routes
         Route::post('/pdf/upload', [PdfController::class, 'upload']);
-        // PDF Management Admin Routes
+        Route::post('/pdfs/bulk-delete', [PdfController::class, 'bulkDelete']);
         Route::apiResource('pdfs', PdfController::class);
-        // Bulk Delete
-    Route::post('/pdfs/bulk-delete', [PdfController::class, 'bulkDelete']);
         
     });
 

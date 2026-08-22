@@ -40,14 +40,45 @@ export const getDashboardStats = async () => {
   return res.data;
 };
 
-// Admin Profile
+// 👤 Admin Profile Services
 export const getAdminProfile = async () => {
   const res = await AdminAPI.get('/me');
   return res.data;
 };
 
-// Categories Services
+export const updateAdminProfile = async (profileData) => {
+  const res = await AdminAPI.put('/me', profileData);
+  return res.data;
+};
+
+// 👥 User Management Services (ADDED)
+export const getAllUsers = async () => {
+  const res = await AdminAPI.get('/users');
+  return res.data;
+};
+
+export const createAdminUser = async (userData) => {
+  const res = await AdminAPI.post('/users', userData);
+  return res.data;
+};
+
+export const updateAdminUser = async (id, userData) => {
+  const res = await AdminAPI.put(`/users/${id}`, userData);
+  return res.data;
+};
+
+export const deleteAdminUser = async (id) => {
+  const res = await AdminAPI.delete(`/users/${id}`);
+  return res.data;
+};
+
+// 📂 Categories Services
 export const getAdminCategories = async () => {
+  const res = await AdminAPI.get('/categories');
+  return res.data;
+};
+
+export const getCategories = async () => {
   const res = await AdminAPI.get('/categories');
   return res.data;
 };
@@ -62,24 +93,17 @@ export const updateCategory = async (id, data) => {
   return res.data;
 };
 
-// FIXED: Ab ye AdminAPI Instance use karega, jisse Auth Token aur Base URL (http://localhost:8000/api/admin/categories) automated chalega
-export const getCategories = async () => {
-  const res = await AdminAPI.get('/categories');
-  return res.data;
-};
-
 export const deleteCategory = async (id) => {
   const res = await AdminAPI.delete(`/categories/${id}`);
   return res.data;
 };
 
-// PDFs Services
+// 📄 PDFs Services
 export const getAdminPdfs = async (search = '', category = '') => {
   const res = await AdminAPI.get('/pdfs', { params: { search, category } });
   return res.data;
 };
 
-// Single PDF Details Fetching
 export const getPdfById = async (id) => {
   const res = await AdminAPI.get(`/pdfs/${id}`);
   return res.data;
