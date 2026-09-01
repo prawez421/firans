@@ -1,32 +1,45 @@
 import axios from 'axios';
 
+// 1. Production API Base URL Configuration (Vercel Ready)
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  process.env.REACT_APP_API_BASE_URL ||
+  'http://localhost:8000/api';
+
+const BASE_URL = `${API_BASE.replace(/\/+$/, '')}/admin`;
+
 const AdminAPI = axios.create({
-  baseURL: 'http://localhost:8000/api/admin',
+  baseURL: BASE_URL,
   headers: {
     'Content-Type': 'application/json',
-    'Accept': 'application/json',
+    Accept: 'application/json',
   },
 });
 
-// Request Interceptor
+// 🟢 Request Interceptor: Admin Token Auto-Attach (SSR Safe)
 AdminAPI.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('admin_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    // Window check to prevent Vercel SSR build crash
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('admin_token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Response Interceptor
+// 🟢 Response Interceptor: Auto Token Cleanup on 401
 AdminAPI.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      localStorage.removeItem('admin_token');
-      // Optional: window.location.href = '/admin/login';
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('admin_token');
+        // Optional: window.location.href = '/admin/login';
+      }
     }
     return Promise.reject(error);
   }
@@ -51,7 +64,7 @@ export const updateAdminProfile = async (profileData) => {
   return res.data;
 };
 
-// 👥 User Management Services (ADDED)
+// 👥 User Management Services
 export const getAllUsers = async () => {
   const res = await AdminAPI.get('/users');
   return res.data;
@@ -100,7 +113,11 @@ export const deleteCategory = async (id) => {
 
 // 📄 PDFs Services
 export const getAdminPdfs = async (search = '', category = '') => {
-  const res = await AdminAPI.get('/pdfs', { params: { search, category } });
+  const params = {};
+  if (search && String(search).trim() !== '') params.search = String(search).trim();
+  if (category && String(category).trim() !== '' && category !== 'All') params.category = category;
+
+  const res = await AdminAPI.get('/pdfs', { params });
   return res.data;
 };
 
@@ -127,10 +144,12 @@ export const uploadPdf = async (formData, onProgress) => {
   return res.data;
 };
 
-// ✏️ PDF Update Service
+// ✏️ PDF Update Service (Laravel _method handling fixed)
 export const updatePdf = async (id, formData) => {
   if (formData instanceof FormData) {
-    formData.append('_method', 'PUT');
+    if (!formData.has('_method')) {
+      formData.append('_method', 'PUT');
+    }
     const res = await AdminAPI.post(`/pdfs/${id}`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',

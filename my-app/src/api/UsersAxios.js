@@ -1,26 +1,32 @@
 import axios from 'axios';
 
-// Base API Endpoint Configuration
-const BASE_URL = 'http://localhost:8000/api';
+// 1. Production API Base URL Configuration (Environment Variable ready)
+const BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  process.env.REACT_APP_API_BASE_URL ||
+  'http://localhost:8000/api';
 
 const UserAPI = axios.create({
   baseURL: BASE_URL,
   headers: {
     'Content-Type': 'application/json',
-    'Accept': 'application/json',
+    Accept: 'application/json',
   },
 });
 
-// 🟢 Request Interceptor: User Token Auto-Attach
+// 🟢 Request Interceptor: User Token Auto-Attach (SSR & Deployment Safe)
 UserAPI.interceptors.request.use(
   (config) => {
-    // Check multiple possible token keys stored in localStorage
-    const token =
-      localStorage.getItem('user_token') ||
-      localStorage.getItem('admin_token') ||
-      localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    // Check if code is running in browser context before accessing localStorage
+    if (typeof window !== 'undefined') {
+      const token =
+        localStorage.getItem('user_token') ||
+        localStorage.getItem('admin_token') ||
+        localStorage.getItem('token');
+
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
     return config;
   },
@@ -35,6 +41,13 @@ UserAPI.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       console.warn('Unauthorized Access (401). Token may be invalid or expired.');
+
+      // Clear stored tokens on 401 error
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('user_token');
+        localStorage.removeItem('admin_token');
+        localStorage.removeItem('token');
+      }
     }
     return Promise.reject(error);
   }
@@ -54,15 +67,20 @@ export const getPdfs = async (search = '', category = '') => {
       params.search = String(search).trim();
     }
 
-    // 🟢 Safe Category Handling (Prevents .trim() crashes on Numbers/Objects)
+    // Safe Category Handling
     const categoryStr = String(category || '').trim();
 
-    if (categoryStr !== '' && categoryStr !== 'All' && categoryStr !== 'undefined' && categoryStr !== 'null') {
-      params.category = category; // Passes ID or Name directly to backend
+    if (
+      categoryStr !== '' &&
+      categoryStr !== 'All' &&
+      categoryStr !== 'undefined' &&
+      categoryStr !== 'null'
+    ) {
+      params.category = category;
     }
 
     const response = await UserAPI.get('/pdfs', { params });
-    
+
     // Normalize response payload (Handles Direct Array or Laravel Paginated Data)
     return response.data?.data || response.data;
   } catch (error) {
