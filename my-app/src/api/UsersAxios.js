@@ -1,20 +1,23 @@
 import axios from 'axios';
 
-// 1. Production API Base URL (Vite + CRA + Next.js Compatible)
+// 1. Dynamic API Base URL Resolver (Vite + Create React App + Next.js Compatible)
 const getBaseUrl = () => {
-  if (typeof window !== 'undefined') {
-    // Vite (React) check
-    if (import.meta && import.meta.env && import.meta.env.VITE_API_BASE_URL) {
-      return import.meta.env.VITE_API_BASE_URL;
-    }
+  // Vite static replacement check
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
   }
-  // Create React App / Next.js check
-  return (
-    process.env.VITE_API_BASE_URL ||
-    process.env.REACT_APP_API_BASE_URL ||
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    'http://localhost:8000/api'
-  );
+
+  // Create React App / Next.js / Node environment check
+  if (typeof process !== 'undefined' && process.env) {
+    return (
+      process.env.VITE_API_BASE_URL ||
+      process.env.REACT_APP_API_BASE_URL ||
+      process.env.NEXT_PUBLIC_API_BASE_URL ||
+      'http://localhost:8000/api'
+    );
+  }
+
+  return 'http://localhost:8000/api';
 };
 
 const UserAPI = axios.create({
