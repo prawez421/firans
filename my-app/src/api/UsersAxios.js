@@ -1,111 +1,145 @@
-import axios from 'axios';
+import axios from "axios";
 
-// 1. Dynamic API Base URL Resolver (Vite + Create React App + Next.js Compatible)
-const getBaseUrl = () => {
-  // Vite static replacement check
-  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL) {
-    return import.meta.env.VITE_API_BASE_URL;
-  }
-
-  // Create React App / Next.js / Node environment check
-  if (typeof process !== 'undefined' && process.env) {
-    return (
-      process.env.VITE_API_BASE_URL ||
-      process.env.REACT_APP_API_BASE_URL ||
-      process.env.NEXT_PUBLIC_API_BASE_URL ||
-      'http://localhost:8000/api'
-    );
-  }
-
-  return 'http://localhost:8000/api';
-};
+// ✅ API Base URL
+// .env / Vercel Environment Variable se URL aayega
+const BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
 
 const UserAPI = axios.create({
-  baseURL: getBaseUrl(),
+  baseURL: BASE_URL,
   headers: {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
+    "Content-Type": "application/json",
+    Accept: "application/json",
   },
 });
 
-// 🟢 Request Interceptor: User Token Auto-Attach (SSR & Deployment Safe)
+// =====================================================
+// 🔐 REQUEST INTERCEPTOR
+// Token automatically request ke sath send karega
+// =====================================================
 UserAPI.interceptors.request.use(
   (config) => {
-    if (typeof window !== 'undefined') {
-      const token =
-        localStorage.getItem('user_token') ||
-        localStorage.getItem('admin_token') ||
-        localStorage.getItem('token');
+    const token =
+      localStorage.getItem("user_token") ||
+      localStorage.getItem("admin_token") ||
+      localStorage.getItem("token");
 
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
+
     return config;
   },
-  (error) => Promise.reject(error)
-);
-
-// 🟢 Response Interceptor: Global Error Handling
-UserAPI.interceptors.response.use(
-  (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      console.warn('Unauthorized Access (401). Token may be invalid or expired.');
-
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('user_token');
-        localStorage.removeItem('admin_token');
-        localStorage.removeItem('token');
-      }
-    }
     return Promise.reject(error);
   }
 );
 
-// 🚀 API Methods
+// =====================================================
+// 🚨 RESPONSE INTERCEPTOR
+// Global error handling
+// =====================================================
+UserAPI.interceptors.response.use(
+  (response) => response,
 
-/**
- * Fetch PDFs with optional Search and Category filters
- */
-export const getPdfs = async (search = '', category = '') => {
+  (error) => {
+    // Unauthorized
+    if (error.response?.status === 401) {
+      console.warn("Unauthorized: Token invalid or expired.");
+
+      localStorage.removeItem("user_token");
+      localStorage.removeItem("admin_token");
+      localStorage.removeItem("token");
+    }
+
+    // Backend reachable nahi hai
+    if (!error.response) {
+      console.error(
+        "Backend server connection failed:",
+        error.message
+      );
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+// =====================================================
+// 📚 GET PDFs
+// Search + Category filter
+// =====================================================
+export const getPdfs = async (search = "", category = "") => {
   try {
     const params = {};
 
-    if (search && String(search).trim() !== '') {
-      params.search = String(search).trim();
+    const searchValue = String(search || "").trim();
+    const categoryValue = String(category || "").trim();
+
+    // Search
+    if (searchValue !== "") {
+      params.search = searchValue;
     }
 
-    const categoryStr = String(category || '').trim();
-
+    // Category
     if (
-      categoryStr !== '' &&
-      categoryStr !== 'All' &&
-      categoryStr !== 'undefined' &&
-      categoryStr !== 'null'
+      categoryValue !== "" &&
+      categoryValue.toLowerCase() !== "all" &&
+      categoryValue.toLowerCase() !== "undefined" &&
+      categoryValue.toLowerCase() !== "null"
     ) {
-      params.category = category;
+      params.category = categoryValue;
     }
 
-    const response = await UserAPI.get('/pdfs', { params });
-    return response.data?.data || response.data;
+    const response = await UserAPI.get("/pdfs", {
+      params,
+    });
+
+    return response.data?.data ?? response.data;
   } catch (error) {
-    console.error('Error fetching PDFs from backend:', error.response?.data || error.message);
+    console.error(
+      "PDF Fetch Error:",
+      error.response?.data || error.message
+    );
+
     throw error;
   }
 };
 
-/**
- * Fetch Categories List from Backend
- */
+// =====================================================
+// 📂 GET CATEGORIES
+// =====================================================
 export const getCategories = async () => {
   try {
-    const response = await UserAPI.get('/categories');
-    return response.data?.data || response.data;
+    const response = await UserAPI.get("/categories");
+
+    return response.data?.data ?? response.data;
   } catch (error) {
-    console.error('Error fetching categories from backend:', error.response?.data || error.message);
+    console.error(
+      "Category Fetch Error:",
+      error.response?.data || error.message
+    );
+
     throw error;
   }
 };
 
+// =====================================================
+// 🔑 LOGIN
+// =====================================================
+export const loginUser = async (data) => {
+  try {
+    const response = await UserAPI.post("/login", data);
+
+    return response.data;
+  } catch (error) {
+    console.error(
+      "Login Error:",
+      error.response?.data || error.message
+    );
+
+    throw error;
+  }
+};
+
+// ✅ Export Axios instance
 export default UserAPI;
