@@ -1,10 +1,19 @@
 import axios from 'axios';
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  process.env.REACT_APP_API_BASE_URL ||
-  'http://localhost:8000/api';
+// 🟢 Dynamic Base URL Detection (Vite + React CRA + Next.js Compatible)
+const getApiBaseUrl = () => {
+  if (typeof window !== 'undefined' && import.meta && import.meta.env && import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  return (
+    process.env.VITE_API_BASE_URL ||
+    process.env.REACT_APP_API_BASE_URL ||
+    process.env.NEXT_PUBLIC_API_BASE_URL ||
+    'http://localhost:8000/api'
+  );
+};
 
+const API_BASE = getApiBaseUrl();
 const BASE_URL = `${API_BASE.replace(/\/+$/, '')}/admin`;
 
 const AdminAPI = axios.create({
@@ -15,7 +24,7 @@ const AdminAPI = axios.create({
   },
 });
 
-// Request Interceptor
+// 🟢 Request Interceptor: Admin Token Auto-Attach
 AdminAPI.interceptors.request.use(
   (config) => {
     if (typeof window !== 'undefined') {
@@ -29,7 +38,7 @@ AdminAPI.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response Interceptor
+// 🟢 Response Interceptor: 401 Session Cleanup
 AdminAPI.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -42,7 +51,8 @@ AdminAPI.interceptors.response.use(
   }
 );
 
-// Admin API Services
+// 🚀 Admin API Services
+
 export const getDashboardStats = async () => {
   const res = await AdminAPI.get('/dashboard-stats');
   return res.data;

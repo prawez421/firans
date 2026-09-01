@@ -1,20 +1,31 @@
 import axios from 'axios';
 
-// Environment variable with fallback
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  process.env.REACT_APP_API_BASE_URL ||
-  'http://localhost:8000/api';
+// 1. Production API Base URL (Vite + CRA + Next.js Compatible)
+const getBaseUrl = () => {
+  if (typeof window !== 'undefined') {
+    // Vite (React) check
+    if (import.meta && import.meta.env && import.meta.env.VITE_API_BASE_URL) {
+      return import.meta.env.VITE_API_BASE_URL;
+    }
+  }
+  // Create React App / Next.js check
+  return (
+    process.env.VITE_API_BASE_URL ||
+    process.env.REACT_APP_API_BASE_URL ||
+    process.env.NEXT_PUBLIC_API_BASE_URL ||
+    'http://localhost:8000/api'
+  );
+};
 
 const UserAPI = axios.create({
-  baseURL: BASE_URL,
+  baseURL: getBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',
   },
 });
 
-// Request Interceptor: SSR Safe Token Handler
+// 🟢 Request Interceptor: User Token Auto-Attach (SSR & Deployment Safe)
 UserAPI.interceptors.request.use(
   (config) => {
     if (typeof window !== 'undefined') {
@@ -32,12 +43,13 @@ UserAPI.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response Interceptor: Global Error Handling
+// 🟢 Response Interceptor: Global Error Handling
 UserAPI.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
       console.warn('Unauthorized Access (401). Token may be invalid or expired.');
+
       if (typeof window !== 'undefined') {
         localStorage.removeItem('user_token');
         localStorage.removeItem('admin_token');
@@ -48,7 +60,11 @@ UserAPI.interceptors.response.use(
   }
 );
 
-// API Methods
+// 🚀 API Methods
+
+/**
+ * Fetch PDFs with optional Search and Category filters
+ */
 export const getPdfs = async (search = '', category = '') => {
   try {
     const params = {};
@@ -58,6 +74,7 @@ export const getPdfs = async (search = '', category = '') => {
     }
 
     const categoryStr = String(category || '').trim();
+
     if (
       categoryStr !== '' &&
       categoryStr !== 'All' &&
@@ -70,17 +87,20 @@ export const getPdfs = async (search = '', category = '') => {
     const response = await UserAPI.get('/pdfs', { params });
     return response.data?.data || response.data;
   } catch (error) {
-    console.error('Error fetching PDFs:', error.response?.data || error.message);
+    console.error('Error fetching PDFs from backend:', error.response?.data || error.message);
     throw error;
   }
 };
 
+/**
+ * Fetch Categories List from Backend
+ */
 export const getCategories = async () => {
   try {
     const response = await UserAPI.get('/categories');
     return response.data?.data || response.data;
   } catch (error) {
-    console.error('Error fetching categories:', error.response?.data || error.message);
+    console.error('Error fetching categories from backend:', error.response?.data || error.message);
     throw error;
   }
 };
