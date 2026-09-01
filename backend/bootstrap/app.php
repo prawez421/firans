@@ -13,7 +13,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // 🟢 Enable CORS & Allow Vercel Frontend
+        $middleware->validateCsrfTokens(except: [
+            'api/*', // API routes par CSRF bypass kar dega
+        ]);
+        
+        // Browser Pre-flight OPTIONS request handling
+        $middleware->statefulApi();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
