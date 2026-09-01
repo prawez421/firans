@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-// 1. Production API Base URL Configuration (Environment Variable ready)
+// Environment variable with fallback
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ||
   process.env.REACT_APP_API_BASE_URL ||
@@ -14,10 +14,9 @@ const UserAPI = axios.create({
   },
 });
 
-// 🟢 Request Interceptor: User Token Auto-Attach (SSR & Deployment Safe)
+// Request Interceptor: SSR Safe Token Handler
 UserAPI.interceptors.request.use(
   (config) => {
-    // Check if code is running in browser context before accessing localStorage
     if (typeof window !== 'undefined') {
       const token =
         localStorage.getItem('user_token') ||
@@ -30,19 +29,15 @@ UserAPI.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// 🟢 Response Interceptor: Global Error Handling
+// Response Interceptor: Global Error Handling
 UserAPI.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
       console.warn('Unauthorized Access (401). Token may be invalid or expired.');
-
-      // Clear stored tokens on 401 error
       if (typeof window !== 'undefined') {
         localStorage.removeItem('user_token');
         localStorage.removeItem('admin_token');
@@ -53,23 +48,16 @@ UserAPI.interceptors.response.use(
   }
 );
 
-// 🚀 API Methods
-
-/**
- * Fetch PDFs with optional Search and Category filters
- */
+// API Methods
 export const getPdfs = async (search = '', category = '') => {
   try {
     const params = {};
 
-    // Safe Search Handling
     if (search && String(search).trim() !== '') {
       params.search = String(search).trim();
     }
 
-    // Safe Category Handling
     const categoryStr = String(category || '').trim();
-
     if (
       categoryStr !== '' &&
       categoryStr !== 'All' &&
@@ -80,24 +68,19 @@ export const getPdfs = async (search = '', category = '') => {
     }
 
     const response = await UserAPI.get('/pdfs', { params });
-
-    // Normalize response payload (Handles Direct Array or Laravel Paginated Data)
     return response.data?.data || response.data;
   } catch (error) {
-    console.error('Error fetching PDFs from backend:', error.response?.data || error.message);
+    console.error('Error fetching PDFs:', error.response?.data || error.message);
     throw error;
   }
 };
 
-/**
- * Fetch Categories List from Backend
- */
 export const getCategories = async () => {
   try {
     const response = await UserAPI.get('/categories');
     return response.data?.data || response.data;
   } catch (error) {
-    console.error('Error fetching categories from backend:', error.response?.data || error.message);
+    console.error('Error fetching categories:', error.response?.data || error.message);
     throw error;
   }
 };

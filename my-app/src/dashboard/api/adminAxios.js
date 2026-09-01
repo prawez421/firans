@@ -1,6 +1,5 @@
 import axios from 'axios';
 
-// 1. Production API Base URL Configuration (Vercel Ready)
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ||
   process.env.REACT_APP_API_BASE_URL ||
@@ -16,10 +15,9 @@ const AdminAPI = axios.create({
   },
 });
 
-// 🟢 Request Interceptor: Admin Token Auto-Attach (SSR Safe)
+// Request Interceptor
 AdminAPI.interceptors.request.use(
   (config) => {
-    // Window check to prevent Vercel SSR build crash
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('admin_token');
       if (token) {
@@ -31,29 +29,25 @@ AdminAPI.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// 🟢 Response Interceptor: Auto Token Cleanup on 401
+// Response Interceptor
 AdminAPI.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('admin_token');
-        // Optional: window.location.href = '/admin/login';
       }
     }
     return Promise.reject(error);
   }
 );
 
-// --- Admin API Services ---
-
-// 📊 Dashboard Stats Service
+// Admin API Services
 export const getDashboardStats = async () => {
   const res = await AdminAPI.get('/dashboard-stats');
   return res.data;
 };
 
-// 👤 Admin Profile Services
 export const getAdminProfile = async () => {
   const res = await AdminAPI.get('/me');
   return res.data;
@@ -64,7 +58,6 @@ export const updateAdminProfile = async (profileData) => {
   return res.data;
 };
 
-// 👥 User Management Services
 export const getAllUsers = async () => {
   const res = await AdminAPI.get('/users');
   return res.data;
@@ -85,7 +78,6 @@ export const deleteAdminUser = async (id) => {
   return res.data;
 };
 
-// 📂 Categories Services
 export const getAdminCategories = async () => {
   const res = await AdminAPI.get('/categories');
   return res.data;
@@ -111,7 +103,6 @@ export const deleteCategory = async (id) => {
   return res.data;
 };
 
-// 📄 PDFs Services
 export const getAdminPdfs = async (search = '', category = '') => {
   const params = {};
   if (search && String(search).trim() !== '') params.search = String(search).trim();
@@ -126,7 +117,6 @@ export const getPdfById = async (id) => {
   return res.data;
 };
 
-// 🚀 PDF Upload Service
 export const uploadPdf = async (formData, onProgress) => {
   const res = await AdminAPI.post('/pdfs/upload', formData, {
     headers: {
@@ -144,7 +134,6 @@ export const uploadPdf = async (formData, onProgress) => {
   return res.data;
 };
 
-// ✏️ PDF Update Service (Laravel _method handling fixed)
 export const updatePdf = async (id, formData) => {
   if (formData instanceof FormData) {
     if (!formData.has('_method')) {
