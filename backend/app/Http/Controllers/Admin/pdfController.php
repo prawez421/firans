@@ -6,188 +6,340 @@ use App\Http\Controllers\Controller;
 use App\Models\PdfFile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 class PdfController extends Controller
 {
-    /**
-     * Fetch All PDFs (with Search & Category Filters)
-     */
+    // ==========================================
+    // GET ALL PDFS
+    // ==========================================
     public function index(Request $request)
     {
-        // 🟢 FIX: with('category') add kiya gaya hai taaki category join ho kar aaye
         $query = PdfFile::with('category');
 
-        // 1. Search Filter (Title ya Original Name par)
+        // Search by title or original filename
         if ($request->filled('search')) {
-            $search = $request->search;
+            $search = trim($request->search);
+
             $query->where(function ($q) use ($search) {
-                $q->where('title', 'like', '%' . $search . '%')
-                  ->orWhere('original_name', 'like', '%' . $search . '%');
+                $q->where('title', 'like', "%{$search}%")
+                  ->orWhere(
+                      'original_name',
+                      'like',
+                      "%{$search}%"
+                  );
             });
         }
 
-        // 2. Category Filter (Category ID ya Name ke base par)
+        // Filter by category ID or name
         if ($request->filled('category')) {
             $category = $request->category;
-            
-            if (is_numeric($category)) {
-                $query->where('category_id', $category);
-            } else {
-                $query->where('category_id', $category)
-                      ->orWhereHas('category', function ($q) use ($category) {
-                          $q->where('name', $category);
-                      });
-            }
+
+            $query->where(function ($q) use ($category) {
+                if (is_numeric($category)) {
+                    $q->where('category_id', $category);
+                } else {
+                    $q->whereHas(
+                        'category',
+                        function ($subQuery) use ($category) {
+                            $subQuery->where(
+                                'name',
+                                $category
+                            );
+                        }
+                    );
+                }
+            });
         }
 
-        $files = $query->latest()->get();
+        $files = $query
+            ->latest()
+            ->get();
 
         return response()->json([
             'success' => true,
-            'data'    => $files,
+            'message' => 'PDFs fetched successfully',
+            'data' => $files,
         ], 200);
     }
 
-    /**
-     * Dedicated Upload Endpoint (/api/admin/pdf/upload)
-     */
+    // ==========================================
+    // UPLOAD PDF
+    // ==========================================
     public function upload(Request $request)
     {
-        $request->validate([
-            'pdf'         => 'required|file|mimes:pdf|max:10240', // Max 10MB
-            'title'       => 'nullable|string|max:255',
-            'category_id' => 'nullable',
+        $validated = $request->validate([
+            'pdf' => 'required|file|mimes:pdf|max:10240',
+            'title' => 'nullable|string|max:255',
+            'category_id' => 'nullable|integer|exists:categories,id',
         ]);
 
-        if ($request->hasFile('pdf')) {
-            $file = $request->file('pdf');
-            $path = $file->store('pdfs', 'public');
+        $file = $request->file('pdf');
 
-            // Default title fallback if none is sent from frontend
-            $title = $request->input('title') ?: pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+        if (!$file || !$file->isValid()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid PDF file',
+            ], 422);
+        }
 
-            $data = [
-                'title'         => $title,
-                'category_id'   => $request->input('category_id'),
+        // Save inside storage/app/public/pdfs
+        $path = $file->store('pdfs', 'public');
+
+        if (!$path) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unable to store PDF file',
+            ], 500);
+        }
+
+        $title = $validated['title']
+            ?? pathinfo(
+                $file->getClientOriginalName(),
+                PATHINFO_FILENAME
+            );
+
+        try {
+            $pdf = PdfFile::create([
+                'title' => $title,
+                'category_id' => $validated['category_id'] ?? null,
                 'original_name' => $file->getClientOriginalName(),
-                'file_path'     => $path,
-                'file_size'     => $file->getSize(),
-                'mime_type'     => $file->getClientMimeType(),
-            ];
+                'file_path' => $path,
+                'file_size' => $file->getSize(),
+                'mime_type' => 'application/pdf',
+            ]);
 
-            $newPdf = PdfFile::create($data);
+            $pdf->load('category');
 
             return response()->json([
                 'success' => true,
                 'message' => 'PDF uploaded successfully',
-                'data'    => $newPdf,
+                'data' => $pdf,
             ], 201);
-        }
 
-        return response()->json([
-            'success' => false,
-            'message' => 'No PDF file attached',
-        ], 400);
+        } catch (\Throwable $e) {
+            // Remove newly uploaded file if DB save fails
+            Storage::disk('public')->delete($path);
+
+            throw $e;
+        }
     }
 
-    /**
-     * Upload PDF (RESTful store method)
-     */
+    // ==========================================
+    // RESTFUL STORE
+    // ==========================================
     public function store(Request $request)
     {
         return $this->upload($request);
     }
 
-    /**
-     * Fetch Single PDF details
-     */
+    // ==========================================
+    // SHOW PDF DETAILS
+    // ==========================================
     public function show($id)
     {
-        // 🟢 FIX: with('category') yahan bhi add kiya gaya hai
-        $file = PdfFile::with('category')->find($id);
+        $pdf = PdfFile::with('category')->find($id);
 
-        if (!$file) {
+        if (!$pdf) {
             return response()->json([
                 'success' => false,
-                'message' => 'File not found',
+                'message' => 'PDF record not found',
             ], 404);
         }
 
         return response()->json([
             'success' => true,
-            'data'    => $file,
+            'message' => 'PDF details fetched successfully',
+            'data' => $pdf,
         ], 200);
     }
 
-    /**
-     * Update Single PDF
-     */
-    public function update(Request $request, $id)
+    // ==========================================
+    // PREVIEW ACTUAL PDF FILE
+    // ==========================================
+    public function preview($id)
     {
-        $file = PdfFile::find($id);
+        $pdf = PdfFile::find($id);
 
-        if (!$file) {
+        if (!$pdf) {
             return response()->json([
                 'success' => false,
-                'message' => 'File not found',
+                'message' => 'PDF record not found',
             ], 404);
         }
 
-        $request->validate([
-            'title'       => 'nullable|string|max:255',
-            'category_id' => 'nullable',
-            'pdf'         => 'nullable|file|mimes:pdf|max:10240',
+        $disk = Storage::disk('public');
+
+        if (
+            empty($pdf->file_path) ||
+            !$disk->exists($pdf->file_path)
+        ) {
+            return response()->json([
+                'success' => false,
+                'message' => 'PDF file not found in storage',
+            ], 404);
+        }
+
+        $filename = $pdf->original_name ?: 'document.pdf';
+
+        return $disk->response(
+            $pdf->file_path,
+            $filename,
+            [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline',
+                'X-Content-Type-Options' => 'nosniff',
+                'Cache-Control' => 'private, no-store',
+            ]
+        );
+    }
+
+    // ==========================================
+    // DOWNLOAD PDF
+    // ==========================================
+    public function download($id)
+    {
+        $pdf = PdfFile::find($id);
+
+        if (!$pdf) {
+            return response()->json([
+                'success' => false,
+                'message' => 'PDF record not found',
+            ], 404);
+        }
+
+        $disk = Storage::disk('public');
+
+        if (
+            empty($pdf->file_path) ||
+            !$disk->exists($pdf->file_path)
+        ) {
+            return response()->json([
+                'success' => false,
+                'message' => 'PDF file not found in storage',
+            ], 404);
+        }
+
+        return $disk->download(
+            $pdf->file_path,
+            $pdf->original_name ?: 'document.pdf',
+            [
+                'Content-Type' => 'application/pdf',
+            ]
+        );
+    }
+
+    // ==========================================
+    // UPDATE PDF
+    // ==========================================
+    public function update(Request $request, $id)
+    {
+        $pdf = PdfFile::find($id);
+
+        if (!$pdf) {
+            return response()->json([
+                'success' => false,
+                'message' => 'PDF record not found',
+            ], 404);
+        }
+
+        $validated = $request->validate([
+            'title' => 'sometimes|nullable|string|max:255',
+            'category_id' => 'sometimes|nullable|integer|exists:categories,id',
+            'pdf' => 'nullable|file|mimes:pdf|max:10240',
         ]);
 
-        if ($request->has('title')) {
-            $file->title = $request->input('title');
+        $oldPath = $pdf->file_path;
+        $newPath = null;
+
+        if (array_key_exists('title', $validated)) {
+            $pdf->title = $validated['title']
+                ?: pathinfo(
+                    $pdf->original_name,
+                    PATHINFO_FILENAME
+                );
         }
-        if ($request->has('category_id')) {
-            $file->category_id = $request->input('category_id');
+
+        if (array_key_exists('category_id', $validated)) {
+            $pdf->category_id = $validated['category_id'];
         }
 
         if ($request->hasFile('pdf')) {
-            if (Storage::disk('public')->exists($file->file_path)) {
-                Storage::disk('public')->delete($file->file_path);
+            $newFile = $request->file('pdf');
+
+            $newPath = $newFile->store(
+                'pdfs',
+                'public'
+            );
+
+            if (!$newPath) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unable to store new PDF',
+                ], 500);
             }
 
-            $newFile = $request->file('pdf');
-            $path = $newFile->store('pdfs', 'public');
+            $pdf->original_name =
+                $newFile->getClientOriginalName();
 
-            $file->original_name = $newFile->getClientOriginalName();
-            $file->file_path     = $path;
-            $file->file_size     = $newFile->getSize();
-            $file->mime_type     = $newFile->getClientMimeType();
+            $pdf->file_path = $newPath;
+            $pdf->file_size = $newFile->getSize();
+            $pdf->mime_type = 'application/pdf';
         }
 
-        $file->save();
+        try {
+            $pdf->save();
+        } catch (\Throwable $e) {
+            // Remove new file if DB update fails
+            if ($newPath) {
+                Storage::disk('public')->delete($newPath);
+            }
+
+            throw $e;
+        }
+
+        // Delete old PDF only after DB update succeeds
+        if (
+            $newPath &&
+            $oldPath &&
+            $oldPath !== $newPath
+        ) {
+            Storage::disk('public')->delete($oldPath);
+        }
+
+        $pdf->load('category');
 
         return response()->json([
             'success' => true,
             'message' => 'PDF updated successfully',
-            'data'    => $file,
+            'data' => $pdf,
         ], 200);
     }
 
-    /**
-     * Delete Single PDF
-     */
+    // ==========================================
+    // DELETE SINGLE PDF
+    // ==========================================
     public function destroy($id)
     {
-        $file = PdfFile::find($id);
+        $pdf = PdfFile::find($id);
 
-        if (!$file) {
+        if (!$pdf) {
             return response()->json([
                 'success' => false,
-                'message' => 'File not found',
+                'message' => 'PDF record not found',
             ], 404);
         }
 
-        if (Storage::disk('public')->exists($file->file_path)) {
-            Storage::disk('public')->delete($file->file_path);
-        }
+        $path = $pdf->file_path;
 
-        $file->delete();
+        // Delete DB record first
+        $pdf->delete();
+
+        // Delete physical PDF
+        if ($path) {
+            Storage::disk('public')->delete($path);
+        }
 
         return response()->json([
             'success' => true,
@@ -195,33 +347,52 @@ class PdfController extends Controller
         ], 200);
     }
 
-    /**
-     * Bulk Delete PDFs
-     */
+    // ==========================================
+    // BULK DELETE PDFS
+    // ==========================================
     public function bulkDelete(Request $request)
     {
-        $request->validate([
-            'ids'   => 'required|array',
-            'ids.*' => 'integer|exists:pdf_files,id',
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'required|integer|distinct|exists:pdf_files,id',
         ]);
 
-        $files = PdfFile::whereIn('id', $request->ids)->get();
+        $files = PdfFile::whereIn(
+            'id',
+            $validated['ids']
+        )->get();
 
         if ($files->isEmpty()) {
             return response()->json([
                 'success' => false,
-                'message' => 'No files found to delete',
+                'message' => 'No PDFs found to delete',
             ], 404);
         }
 
-        $paths = $files->pluck('file_path')->toArray();
-        Storage::disk('public')->delete($paths);
+        $paths = $files
+            ->pluck('file_path')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
 
-        PdfFile::whereIn('id', $files->pluck('id'))->delete();
+        $count = $files->count();
+
+        // Delete DB records
+        PdfFile::whereIn(
+            'id',
+            $files->pluck('id')->all()
+        )->delete();
+
+        // Delete physical files
+        if (!empty($paths)) {
+            Storage::disk('public')->delete($paths);
+        }
 
         return response()->json([
             'success' => true,
-            'message' => 'Selected PDFs deleted successfully',
+            'message' => "{$count} PDFs deleted successfully",
+            'deleted_count' => $count,
         ], 200);
     }
 }

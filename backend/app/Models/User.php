@@ -16,9 +16,9 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
-        'bio',      // 👈 Added for Admin Settings
-        'language', // 👈 Added for Admin Settings
-        'avatar',   // 👈 Added for Admin Settings
+        'bio',      
+        'language', 
+        'avatar',   
     ];
 
     protected $hidden = [

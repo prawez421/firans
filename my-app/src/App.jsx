@@ -1,54 +1,152 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider } from 'next-themes';
 
-import HomePage from './pages/HomePage';
-import LoginPage from './pages/LoginPage';
+import { Routes, Route, Navigate } from "react-router-dom";
 
-import UserProtectedRoute from './components/UserProtectedRoute'; // User Guard
+// ==========================================
+// AUTH
+// ==========================================
+import LoginPage from "./auth/LoginPage";
 
-// Admin Dashboard Components
-import ProtectedRoute from './dashboard/components/AdminProtectedRoute'; // Admin Guard
-import AdminLayout from './dashboard/AdminLayout';
-import Dashboard from './dashboard/pages/Dashboard';
-import PdfList from './dashboard/pages/PdfList'; // Fixed Import Path
-import UploadPdf from './dashboard/pages/PdfUpload';
-import EditPdf from './dashboard/pages/PdfEdit';
-import PdfView from './dashboard/pages/PdfView';
-import Settings from './dashboard/pages/Settings';
-import CategoriesPage from './dashboard/pages/CategoriesMaster'
+import {
+  isAuthenticated,
+  isAdmin,
+} from "./services/authService";
 
+// ==========================================
+// USER PANEL
+// ==========================================
+import UserLayout from "./users/layouts/UserLayout";
+import UserDashboard from "./users/pages/Dashboard";
+import MyPDFs from "./users/pages/MyPDFs";
+import UserProfile from "./users/pages/Profile";
+
+// ==========================================
+// ADMIN PANEL
+// ==========================================
+import AdminLayout from "./admin/components/AdminLayout";
+
+import Dashboard from "./admin/pages/Dashboard";
+import Users from "./admin/pages/Users";
+import PdfManagement from "./admin/pages/PdfManagement";
+import Categories from "./admin/pages/Categories";
+import Settings from "./admin/pages/Settings";
+
+// ==========================================
+// PROTECTED ROUTE
+// ==========================================
+function ProtectedRoute({ children, type = "user" }) {
+  const allowed =
+    type === "admin"
+      ? isAdmin()
+      : isAuthenticated("user");
+
+  if (!allowed) {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+}
+
+// ==========================================
+// APP ROUTES
+// ==========================================
 export default function App() {
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <Router>
-        <Routes>
-          {/* Public Login Route */}
-          <Route path="/login" element={<LoginPage />} />
+    <Routes>
+      {/* =====================================
+          PUBLIC LOGIN
+      ===================================== */}
+      <Route
+        path="/"
+        element={<LoginPage />}
+      />
 
-          {/* User Protected Routes */}
-          <Route element={<UserProtectedRoute />}>
-            <Route path="/" element={<HomePage />} />
-          </Route>
+      {/* =====================================
+          USER PANEL
+      ===================================== */}
+      <Route
+        path="/user"
+        element={
+          <ProtectedRoute type="user">
+            <UserLayout />
+          </ProtectedRoute>
+        }
+      >
+        {/* USER DASHBOARD */}
+        <Route
+          index
+          element={<UserDashboard />}
+        />
 
-          {/* Admin Protected Routes */}
-          <Route element={<ProtectedRoute />}>
-            <Route path="/admin" element={<AdminLayout />}>
-              <Route index element={<Navigate to="/admin/dashboard" replace />} />
-              <Route path="dashboard" element={<Dashboard />} />
-              <Route path="pdfs" element={<PdfList />} />
-              <Route path="upload" element={<UploadPdf />} />
-              <Route path="edit/:id" element={<EditPdf />} />
-              <Route path="view/:id" element={<PdfView />} />
-              <Route path="settings" element={<Settings />} />
-              <Route path="master/categories" element={<CategoriesPage />} />
-            </Route>
-          </Route>
+        {/* MY PDFS */}
+        <Route
+          path="pdfs"
+          element={<MyPDFs />}
+        />
 
-          {/* Catch-all Route (Fallback) */}
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-      </Router>
-    </ThemeProvider>
+        {/* USER PROFILE */}
+        <Route
+          path="profile"
+          element={<UserProfile />}
+        />
+      </Route>
+
+      {/* =====================================
+          ADMIN PANEL
+      ===================================== */}
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute type="admin">
+            <AdminLayout />
+          </ProtectedRoute>
+        }
+      >
+        {/* DEFAULT ADMIN ROUTE */}
+        <Route
+          index
+          element={
+            <Navigate to="dashboard" replace />
+          }
+        />
+
+        {/* DASHBOARD */}
+        <Route
+          path="dashboard"
+          element={<Dashboard />}
+        />
+
+        {/* USERS MANAGEMENT */}
+        <Route
+          path="users"
+          element={<Users />}
+        />
+
+        {/* PDF MANAGEMENT */}
+        <Route
+          path="pdfs"
+          element={<PdfManagement />}
+        />
+
+        {/* CATEGORIES MANAGEMENT */}
+        <Route
+          path="categories"
+          element={<Categories />}
+        />
+
+        {/* SETTINGS */}
+        <Route
+          path="settings"
+          element={<Settings />}
+        />
+      </Route>
+
+      {/* =====================================
+          404 FALLBACK
+      ===================================== */}
+      <Route
+        path="*"
+        element={<Navigate to="/" replace />}
+      />
+    </Routes>
   );
 }

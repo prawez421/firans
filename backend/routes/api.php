@@ -56,11 +56,55 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/categories/{id}', [CategoryController::class, 'update']);
         Route::delete('/categories/{id}', [CategoryController::class, 'destroy']);
 
-        // 📄 PDF Management Admin Routes
-        Route::post('/pdf/upload', [PdfController::class, 'upload']);
-        Route::post('/pdfs/bulk-delete', [PdfController::class, 'bulkDelete']);
-        Route::apiResource('pdfs', PdfController::class);
-        
-    });
+      
+// ==========================================
+// 📄 PDF MANAGEMENT ADMIN ROUTES
+// ==========================================
+
+// 1. PDF Upload
+Route::post('/pdf/upload', [
+    PdfController::class,
+    'upload'
+]);
+
+// 2. PDF Preview (View Button)
+Route::get('/pdfs/{id}/preview', [
+    PdfController::class,
+    'preview'
+]);
+
+// 3. PDF Download
+Route::get('/pdfs/{id}/download', [
+    PdfController::class,
+    'download'
+]);
+
+// 4. Bulk Delete PDFs
+Route::post('/pdfs/bulk-delete', [
+    PdfController::class,
+    'bulkDelete'
+]);
+
+// 5. PDF CRUD
+// GET    /pdfs
+// POST   /pdfs
+// GET    /pdfs/{id}
+// PUT    /pdfs/{id}
+// DELETE /pdfs/{id}
+Route::apiResource('pdfs', PdfController::class); });
+
+// ==========================================
+// USER PDF PREVIEW & DOWNLOAD
+// ==========================================
+
+Route::get('/pdfs/{id}/preview', [
+    PdfController::class,
+    'preview'
+]);
+
+Route::get('/pdfs/{id}/download', [
+    PdfController::class,
+    'download'
+]);
 
 });

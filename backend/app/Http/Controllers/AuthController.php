@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
-    // 🔐 1. USER REGISTER
+    //  1. USER REGISTER
     public function register(Request $request)
     {
         $request->validate([
